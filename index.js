@@ -53,6 +53,7 @@ async function run() {
 
     const database = client.db("artQuestDB");
     const userCollection = database.collection("users");
+    const classCollection = database.collection("classes");
 
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -87,6 +88,21 @@ async function run() {
         return res.send({ message: "user already exists" });
       }
       const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    // ------------Student Methods------------
+    // Check Student
+    app.get("/users/student/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+
+      if (req.decoded.email !== email) {
+        res.send({ student: false });
+      }
+
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      const result = { student: user?.role === "student" };
       res.send(result);
     });
 
@@ -153,6 +169,13 @@ async function run() {
       const result = { instructor: user?.role === "instructor" };
       res.send(result);
     });
+    // Add new class
+    app.post("/addclass", async (req, res) => {
+      const item = req.body;
+      console.log(item);
+      const result = await classCollection.insertOne(item);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
@@ -162,6 +185,7 @@ async function run() {
   } finally {
   }
 }
+
 run().catch(console.dir);
 // ------------------------
 
