@@ -63,7 +63,7 @@ async function run() {
       res.send({ token });
     });
 
-    // check admin
+    // verify admin
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email: email };
@@ -76,7 +76,21 @@ async function run() {
       }
       next();
     };
+    // verify instructor
+    const verifyInstructor = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
 
+      if (user?.role !== "instructor") {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden message" });
+      }
+      next();
+    };
+
+    // Upload every new students info in database
     app.post("/users", async (req, res) => {
       const user = req.body;
       user.role = "student";
@@ -170,12 +184,23 @@ async function run() {
       res.send(result);
     });
     // Add new class
-    app.post("/addclass", async (req, res) => {
+    app.post("/addclass", verifyJWT, verifyInstructor, async (req, res) => {
       const item = req.body;
       console.log(item);
       const result = await classCollection.insertOne(item);
       res.send(result);
     });
+    // send classes
+    app.get(
+      "/instructor/classes/:email",
+      verifyJWT,
+      verifyInstructor,
+      async (req, res) => {
+        const email = req.params.email;
+        const result = await classCollection.find({ email: email }).toArray();
+        res.send(result);
+      }
+    );
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
