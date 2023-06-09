@@ -141,9 +141,13 @@ async function run() {
     });
     // send all classes
     app.get("/admin/classes", verifyJWT, verifyAdmin, async (req, res) => {
-      const result = await classCollection.find().toArray();
+      const result = await classCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
     });
+
     // Generate new admin
     app.patch("/users/admin/:id", verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
@@ -232,6 +236,59 @@ async function run() {
         res.send(result);
       }
     );
+
+    // ------------Student Methods-------------
+    // Popular Classes
+    app.get("/popularClasses", async (req, res) => {
+      const result = await classCollection
+        .find({ status: "approved" })
+        .sort({ enrolled: -1 })
+        .limit(6)
+        .project({
+          _id: 1,
+          name: 1,
+          image: 1,
+          seats: 1,
+          price: 1,
+          enrolled: 1,
+          instructor: 1,
+        })
+        .toArray();
+
+      res.send(result);
+    });
+    // Popular Instructor
+    app.get("/popularInstructors", async (req, res) => {
+      try {
+        const result = await classCollection
+          .aggregate([
+            {
+              $group: {
+                _id: "$instructor",
+                name: { $first: "$instructor" },
+                email: { $first: "$email" },
+                totalStudents: { $sum: "$enrolled" },
+                totalClasses: { $sum: 1 }, // Count the number of classes per instructor
+              },
+            },
+            { $sort: { totalStudents: -1 } },
+            { $limit: 6 },
+          ])
+          .project({
+            _id: 0,
+            name: 1,
+            email: 1,
+            totalStudents: 1,
+            totalClasses: 1,
+          })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send("Internal Server Error");
+      }
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
