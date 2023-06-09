@@ -139,6 +139,11 @@ async function run() {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
+    // send all classes
+    app.get("/admin/classes", verifyJWT, verifyAdmin, async (req, res) => {
+      const result = await classCollection.find().toArray();
+      res.send(result);
+    });
     // Generate new admin
     app.patch("/users/admin/:id", verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
@@ -168,6 +173,32 @@ async function run() {
         res.send(result);
       }
     );
+    // Approved or Deny Classes
+    app.patch("/admin/class/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const body = req.body;
+      const classMethod = body.method;
+
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: "",
+        },
+      };
+
+      if (classMethod === "approve") {
+        updatedDoc.$set.status = "approved";
+        updatedDoc.$unset = { feedback: "" };
+      } else if (classMethod === "deny") {
+        updatedDoc.$set.status = "denied";
+        updatedDoc.$set.feedback = body.feedback || "";
+      } else {
+        return res.status(400).send("Invalid action");
+      }
+
+      const result = await classCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
 
     // ------------Instructor Methods------------
     // Check Instructor
@@ -186,7 +217,7 @@ async function run() {
     // Add new class
     app.post("/addclass", verifyJWT, verifyInstructor, async (req, res) => {
       const item = req.body;
-      console.log(item);
+      item.createdAt = new Date();
       const result = await classCollection.insertOne(item);
       res.send(result);
     });
