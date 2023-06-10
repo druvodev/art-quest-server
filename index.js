@@ -15,7 +15,7 @@ const verifyJWT = (req, res, next) => {
 
   // check user authorization
   if (!authorization) {
-    return res.status(401).send({ error: true, message: "unauthorize access" });
+    return res.status(401).json({ error: true, message: "unauthorize access" });
   }
 
   // get bearer token
@@ -26,7 +26,7 @@ const verifyJWT = (req, res, next) => {
     if (err) {
       return res
         .status(401)
-        .send({ error: true, message: "unauthorize access" });
+        .json({ error: true, message: "unauthorize access" });
     }
     req.decoded = decoded;
     next();
@@ -62,7 +62,7 @@ async function run() {
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
-      res.send({ token });
+      res.json({ token });
     });
 
     // verify admin
@@ -74,7 +74,7 @@ async function run() {
       if (user?.role !== "admin") {
         return res
           .status(403)
-          .send({ error: true, message: "forbidden message" });
+          .json({ error: true, message: "forbidden message" });
       }
       next();
     };
@@ -87,7 +87,7 @@ async function run() {
       if (user?.role !== "instructor") {
         return res
           .status(403)
-          .send({ error: true, message: "forbidden message" });
+          .json({ error: true, message: "forbidden message" });
       }
       next();
     };
@@ -96,15 +96,13 @@ async function run() {
     app.post("/users", async (req, res) => {
       const user = req.body;
       user.role = "student";
-      console.log(user);
       const query = { email: user.email };
       const existingUser = await userCollection.findOne(query);
-      console.log("existing user: ", existingUser);
       if (existingUser) {
-        return res.send({ message: "user already exists" });
+        return res.json({ message: "user already exists" });
       }
       const result = await userCollection.insertOne(user);
-      res.send(result);
+      res.json(result);
     });
 
     // ------------Student Methods------------
@@ -113,13 +111,13 @@ async function run() {
       const email = req.params.email;
 
       if (req.decoded.email !== email) {
-        res.send({ student: false });
+        res.json({ student: false });
       }
 
       const query = { email: email };
       const user = await userCollection.findOne(query);
       const result = { student: user?.role === "student" };
-      res.send(result);
+      res.json(result);
     });
 
     // ------------Admin Methods------------
@@ -128,18 +126,18 @@ async function run() {
       const email = req.params.email;
 
       if (req.decoded.email !== email) {
-        res.send({ admin: false });
+        res.json({ admin: false });
       }
 
       const query = { email: email };
       const user = await userCollection.findOne(query);
       const result = { admin: user?.role === "admin" };
-      res.send(result);
+      res.json(result);
     });
     // send all users
     app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray();
-      res.send(result);
+      res.json(result);
     });
     // send all classes
     app.get("/admin/classes", verifyJWT, verifyAdmin, async (req, res) => {
@@ -147,7 +145,7 @@ async function run() {
         .find()
         .sort({ createdAt: -1 })
         .toArray();
-      res.send(result);
+      res.json(result);
     });
 
     // Generate new admin
@@ -160,7 +158,7 @@ async function run() {
         },
       };
       const result = await userCollection.updateOne(filter, updatedDoc);
-      res.send(result);
+      res.json(result);
     });
     // Generate new instructor
     app.patch(
@@ -176,7 +174,7 @@ async function run() {
           },
         };
         const result = await userCollection.updateOne(filter, updatedDoc);
-        res.send(result);
+        res.json(result);
       }
     );
     // Approved or Deny Classes
@@ -199,11 +197,11 @@ async function run() {
         updatedDoc.$set.status = "denied";
         updatedDoc.$set.feedback = body.feedback || "";
       } else {
-        return res.status(400).send("Invalid action");
+        return res.status(400).json("Invalid action");
       }
 
       const result = await classCollection.updateOne(filter, updatedDoc);
-      res.send(result);
+      res.json(result);
     });
 
     // ------------Instructor Methods------------
@@ -212,13 +210,13 @@ async function run() {
       const email = req.params.email;
 
       if (req.decoded.email !== email) {
-        res.send({ instructor: false });
+        res.json({ instructor: false });
       }
 
       const query = { email: email };
       const user = await userCollection.findOne(query);
       const result = { instructor: user?.role === "instructor" };
-      res.send(result);
+      res.json(result);
     });
     // send classes
     app.get(
@@ -228,7 +226,7 @@ async function run() {
       async (req, res) => {
         const email = req.params.email;
         const result = await classCollection.find({ email: email }).toArray();
-        res.send(result);
+        res.json(result);
       }
     );
     // Add new class
@@ -236,7 +234,7 @@ async function run() {
       const item = req.body;
       item.createdAt = new Date();
       const result = await classCollection.insertOne(item);
-      res.send(result);
+      res.json(result);
     });
 
     // ------------Unauthorized Student Methods-------------
@@ -257,7 +255,7 @@ async function run() {
         })
         .toArray();
 
-      res.send(result);
+      res.json(result);
     });
     // Popular Instructor
     app.get("/popularInstructors", async (req, res) => {
@@ -285,10 +283,9 @@ async function run() {
           })
           .toArray();
 
-        res.send(result);
+        res.json(result);
       } catch (error) {
-        console.log(error);
-        res.status(500).send("Internal Server Error");
+        res.status(500).json("Internal Server Error");
       }
     });
     // All Instructors
@@ -317,10 +314,9 @@ async function run() {
             },
           ])
           .toArray();
-        res.send(result);
+        res.json(result);
       } catch (error) {
-        console.log(error);
-        res.status(500).send("Internal Server Error");
+        res.status(500).json("Internal Server Error");
       }
     });
     // Send Approved classes
@@ -328,7 +324,7 @@ async function run() {
       const result = await classCollection
         .find({ status: "approved" })
         .toArray();
-      res.send(result);
+      res.json(result);
     });
 
     // ------------Authorized Student Methods------------
@@ -341,7 +337,7 @@ async function run() {
         const user = await userCollection.findOne({ email: studentEmail });
 
         if (!user || user.role !== "student") {
-          return res.status(401).send("Unauthorized");
+          return res.status(401).json("Unauthorized");
         }
 
         const query = { email: studentEmail };
@@ -349,10 +345,10 @@ async function run() {
         const options = { upsert: true };
 
         const result = await userCollection.updateOne(query, update, options);
-        res.send(result);
+        res.json(result);
       } catch (error) {
         console.error("Error selecting class:", error);
-        res.status(500).send("Internal Server Error");
+        res.status(500).json("Internal Server Error");
       }
     });
     // Get Selected Classes
@@ -363,7 +359,7 @@ async function run() {
         const user = await userCollection.findOne({ email: studentEmail });
 
         if (!user || user.role !== "student") {
-          return res.status(404).send("Student not found");
+          return res.status(404).json("Student not found");
         }
 
         const selectedClassIds = user.selectedClass || [];
@@ -373,40 +369,131 @@ async function run() {
           .find({ _id: { $in: objectIdClassIds }, status: "approved" })
           .toArray();
 
-        res.send(classDetails);
+        res.json(classDetails);
       } catch (error) {
         console.error("Error getting selected classes:", error);
-        res.status(500).send("Internal Server Error");
+        res.status(500).json("Internal Server Error");
       }
     });
-    // Remove Selected Class
-    app.delete("/removeClass/:id", async (req, res) => {
-      const classId = req.params.id;
-      const studentEmail = req.body.email;
-      console.log(studentEmail, classId);
+    // Get Enrolled Class
+    app.get("/enrolledClasses/:email", verifyJWT, async (req, res) => {
+      const studentEmail = req.params.email;
 
       try {
         const user = await userCollection.findOne({ email: studentEmail });
 
         if (!user || user.role !== "student") {
-          return res.status(404).send("Student not found");
+          return res.status(404).json("Student not found");
         }
 
-        // Remove the class ID from the selectedClass array
-        const updatedSelectedClass = user.selectedClass.filter(
-          (id) => id !== classId
-        );
+        const enrolledClassIds = user.enrolledClass || [];
+        const objectIdClassIds = enrolledClassIds.map((id) => new ObjectId(id));
 
-        // Update the user document with the updated selectedClass array
-        await userCollection.updateOne(
-          { email: studentEmail },
-          { $set: { selectedClass: updatedSelectedClass } }
-        );
+        const classDetails = await classCollection
+          .find({ _id: { $in: objectIdClassIds }, status: "approved" })
+          .toArray();
 
-        res.status(200).send("Class removed successfully");
+        // Fetch the enrolled time from the payment collection based on the email
+        const enrolledTime = await paymentCollection
+          .findOne({ email: studentEmail })
+          .then((paymentInfo) => paymentInfo.createdAt);
+
+        // Update the class details with the enrolled time
+        const updatedClassDetails = classDetails.map((classDetail) => ({
+          ...classDetail,
+          enrolledTime: enrolledTime,
+        }));
+
+        res.json(updatedClassDetails);
       } catch (error) {
-        console.error("Error removing class:", error);
-        res.status(500).send("Internal Server Error");
+        console.error("Error getting selected classes:", error);
+        res.status(500).json("Internal Server Error");
+      }
+    });
+    // Get payment history
+    app.get("/payments/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+
+      try {
+        // Find payment data for the specified email and sort by createdAt in descending order
+        const payments = await paymentCollection
+          .find({ email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.json(payments);
+      } catch (error) {
+        console.error("Error retrieving payment data:", error);
+        res.status(500).json("Internal Server Error");
+      }
+    });
+    // send instructor classes
+    app.get("/instructor/:email", verifyJWT, async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const classes = await classCollection
+          .find({ email: email, status: "approved" })
+          .toArray();
+        res.json(classes);
+      } catch (error) {
+        console.error("Error fetching instructor classes:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+
+    // Start the server
+    app.listen(3000, () => {
+      // console.log("Server listening on port 3000");
+    });
+
+    // Update payment information With calculation enrolled student and more
+    app.post("/payment", verifyJWT, async (req, res) => {
+      const paymentInfo = req.body;
+      const { email, classId } = paymentInfo;
+
+      try {
+        // Check if the user exists and is a student
+        const user = await userCollection.findOne({ email: email });
+        if (!user || user.role !== "student") {
+          return res.status(401).json("Unauthorized");
+        }
+
+        // Update the user's enrolledClass array by adding the class ID
+        const query = { email: email };
+        const update = { $addToSet: { enrolledClass: classId } };
+        const options = { upsert: true };
+        await userCollection.updateOne(query, update, options);
+
+        // Remove the class ID from the selectedClass array
+        await userCollection.updateOne(
+          { email: email },
+          { $pull: { selectedClass: classId } }
+        );
+
+        // Increase the "enrolled" field in the class document
+        const classObjectId = new ObjectId(classId);
+        await classCollection.updateOne(
+          { _id: classObjectId },
+          { $inc: { enrolled: 1 } }
+        );
+
+        // Fetch the class name based on classId
+        const classInfo = await classCollection.findOne({ _id: classObjectId });
+        if (!classInfo) {
+          throw new Error("Class not found");
+        }
+
+        // Add the class name to the paymentInfo object
+        paymentInfo.className = classInfo.name;
+
+        // Store the paymentInfo in the paymentCollection
+        const result = await paymentCollection.insertOne(paymentInfo);
+
+        res.json("Payment information updated successfully");
+      } catch (error) {
+        console.error("Error storing payment data:", error);
+        res.status(500).json("Internal Server Error");
       }
     });
 
@@ -421,7 +508,7 @@ async function run() {
         if (!classObject) {
           return res
             .status(404)
-            .send({ error: true, message: "Class not found" });
+            .json({ error: true, message: "Class not found" });
         }
         const amount = classObject.price * 100;
 
@@ -431,45 +518,50 @@ async function run() {
           payment_method_types: ["card"],
         });
 
-        res.send({
+        res.json({
           clientSecret: paymentIntent.client_secret,
         });
       } catch (error) {
         console.error("Error creating payment intent:", error);
-        res.status(500).send({ error: true, message: "Internal Server Error" });
+        res.status(500).json({ error: true, message: "Internal Server Error" });
       }
     });
-    // Update payment information
-    app.post("/payment", verifyJWT, async (req, res) => {
-      const paymentInfo = req.body;
-      const { email, classId } = paymentInfo;
+
+    // Remove Selected Class
+    app.delete("/removeClass/:id", async (req, res) => {
+      const classId = req.params.id;
+      const studentEmail = req.body.email;
 
       try {
-        // Check if the user exists and is a student
-        const user = await userCollection.findOne({ email: email });
+        const user = await userCollection.findOne({ email: studentEmail });
+
         if (!user || user.role !== "student") {
-          return res.status(401).send("Unauthorized");
+          return res.status(404).json("Student not found");
         }
 
-        // Update the user's enrolledClass array by adding the class ID
-        const query = { email: email };
-        const update = { $addToSet: { enrolledClass: classId } };
-        const options = { upsert: true };
-        const result = await userCollection.updateOne(query, update, options);
+        // Remove the class ID from the selectedClass array
+        const updatedSelectedClass = user.selectedClass.filter(
+          (id) => id !== classId
+        );
 
-        console.log(paymentInfo);
-        res.send(result);
+        // Update the user document with the updated selectedClass array
+        await userCollection.updateOne(
+          { email: studentEmail },
+          { $set: { selectedClass: updatedSelectedClass } }
+        );
+
+        res.status(200).json("Class removed successfully");
       } catch (error) {
-        console.error("Error storing payment data:", error);
-        res.status(500).send("Internal Server Error");
+        console.error("Error removing class:", error);
+        res.status(500).json("Internal Server Error");
       }
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
   }
 }
@@ -478,7 +570,7 @@ run().catch(console.dir);
 // ------------------------
 
 app.get("/", (req, res) => {
-  res.send("Art Quest is running");
+  res.json("Art Quest is running");
 });
 
 app.listen(port, () => {
