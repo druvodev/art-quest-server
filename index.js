@@ -55,6 +55,7 @@ async function run() {
     const database = client.db("artQuestDB");
     const userCollection = database.collection("users");
     const classCollection = database.collection("classes");
+    const paymentCollection = database.collection("paymentHistory");
 
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -411,17 +412,57 @@ async function run() {
 
     // Create Payment intent
     app.post("/create-payment-intent", verifyJWT, async (req, res) => {
-      const { price } = req.body;
-      const amount = parseInt(price * 100);
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: "usd",
-        payment_method_types: ["card"],
-      });
+      const { classId } = req.body;
 
-      res.send({
-        clientSecret: paymentIntent.client_secret,
-      });
+      try {
+        const classObject = await classCollection.findOne({
+          _id: new ObjectId(classId),
+        });
+        if (!classObject) {
+          return res
+            .status(404)
+            .send({ error: true, message: "Class not found" });
+        }
+        const amount = classObject.price * 100;
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        console.error("Error creating payment intent:", error);
+        res.status(500).send({ error: true, message: "Internal Server Error" });
+      }
+    });
+    // Update payment information
+    app.post("/payment", verifyJWT, async (req, res) => {
+      const paymentInfo = req.body;
+      const { email, classId } = paymentInfo;
+
+      try {
+        // Check if the user exists and is a student
+        const user = await userCollection.findOne({ email: email });
+        if (!user || user.role !== "student") {
+          return res.status(401).send("Unauthorized");
+        }
+
+        // Update the user's enrolledClass array by adding the class ID
+        const query = { email: email };
+        const update = { $addToSet: { enrolledClass: classId } };
+        const options = { upsert: true };
+        const result = await userCollection.updateOne(query, update, options);
+
+        console.log(paymentInfo);
+        res.send(result);
+      } catch (error) {
+        console.error("Error storing payment data:", error);
+        res.status(500).send("Internal Server Error");
+      }
     });
 
     // Send a ping to confirm a successful connection
