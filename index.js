@@ -218,13 +218,6 @@ async function run() {
       const result = { instructor: user?.role === "instructor" };
       res.send(result);
     });
-    // Add new class
-    app.post("/addclass", verifyJWT, verifyInstructor, async (req, res) => {
-      const item = req.body;
-      item.createdAt = new Date();
-      const result = await classCollection.insertOne(item);
-      res.send(result);
-    });
     // send classes
     app.get(
       "/instructor/classes/:email",
@@ -236,8 +229,15 @@ async function run() {
         res.send(result);
       }
     );
+    // Add new class
+    app.post("/addclass", verifyJWT, verifyInstructor, async (req, res) => {
+      const item = req.body;
+      item.createdAt = new Date();
+      const result = await classCollection.insertOne(item);
+      res.send(result);
+    });
 
-    // ------------Student Methods-------------
+    // ------------Unauthorized Student Methods-------------
     // Popular Classes
     app.get("/popularClasses", async (req, res) => {
       const result = await classCollection
@@ -268,7 +268,7 @@ async function run() {
                 name: { $first: "$instructor" },
                 email: { $first: "$email" },
                 totalStudents: { $sum: "$enrolled" },
-                totalClasses: { $sum: 1 }, // Count the number of classes per instructor
+                totalClasses: { $sum: 1 },
               },
             },
             { $sort: { totalStudents: -1 } },
@@ -288,6 +288,45 @@ async function run() {
         console.log(error);
         res.status(500).send("Internal Server Error");
       }
+    });
+    // All Instructors
+    app.get("/instructors", async (req, res) => {
+      try {
+        const result = await userCollection
+          .aggregate([
+            {
+              $match: { role: "instructor" },
+            },
+            {
+              $lookup: {
+                from: "classes",
+                localField: "email",
+                foreignField: "email",
+                as: "classes",
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                email: 1,
+                totalClasses: { $size: "$classes" },
+              },
+            },
+          ])
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send("Internal Server Error");
+      }
+    });
+    // Send Approved classes
+    app.get("/classes", async (req, res) => {
+      const result = await classCollection
+        .find({ status: "approved" })
+        .toArray();
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
