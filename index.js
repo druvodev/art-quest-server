@@ -329,6 +329,85 @@ async function run() {
       res.send(result);
     });
 
+    // ------------Authorized Student Methods------------
+    // Select Class
+    app.patch("/classSelect/:id", verifyJWT, async (req, res) => {
+      const studentEmail = req.body.email;
+      const classId = req.params.id;
+
+      try {
+        const user = await userCollection.findOne({ email: studentEmail });
+
+        if (!user || user.role !== "student") {
+          return res.status(401).send("Unauthorized");
+        }
+
+        const query = { email: studentEmail };
+        const update = { $addToSet: { selectedClass: classId } };
+        const options = { upsert: true };
+
+        const result = await userCollection.updateOne(query, update, options);
+        res.send(result);
+      } catch (error) {
+        console.error("Error selecting class:", error);
+        res.status(500).send("Internal Server Error");
+      }
+    });
+    // Get Selected Classes
+    app.get("/selectedClasses/:email", verifyJWT, async (req, res) => {
+      const studentEmail = req.params.email;
+
+      try {
+        const user = await userCollection.findOne({ email: studentEmail });
+
+        if (!user || user.role !== "student") {
+          return res.status(404).send("Student not found");
+        }
+
+        const selectedClassIds = user.selectedClass || [];
+        const objectIdClassIds = selectedClassIds.map((id) => new ObjectId(id));
+
+        const classDetails = await classCollection
+          .find({ _id: { $in: objectIdClassIds }, status: "approved" })
+          .toArray();
+
+        res.send(classDetails);
+      } catch (error) {
+        console.error("Error getting selected classes:", error);
+        res.status(500).send("Internal Server Error");
+      }
+    });
+    // Remove Selected Class
+    app.delete("/removeClass/:id", async (req, res) => {
+      const classId = req.params.id;
+      const studentEmail = req.body.email;
+      console.log(studentEmail, classId);
+
+      try {
+        const user = await userCollection.findOne({ email: studentEmail });
+
+        if (!user || user.role !== "student") {
+          return res.status(404).send("Student not found");
+        }
+
+        // Remove the class ID from the selectedClass array
+        const updatedSelectedClass = user.selectedClass.filter(
+          (id) => id !== classId
+        );
+
+        // Update the user document with the updated selectedClass array
+        await userCollection.updateOne(
+          { email: studentEmail },
+          { $set: { selectedClass: updatedSelectedClass } }
+        );
+
+        res.status(200).send("Class removed successfully");
+      } catch (error) {
+        console.error("Error removing class:", error);
+        res.status(500).send("Internal Server Error");
+      }
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
