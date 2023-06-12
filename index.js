@@ -274,20 +274,52 @@ async function run() {
             { $sort: { totalStudents: -1 } },
             { $limit: 6 },
           ])
-          .project({
-            _id: 0,
-            name: 1,
-            email: 1,
-            totalStudents: 1,
-            totalClasses: 1,
-          })
           .toArray();
 
-        res.json(result);
+        const instructorsWithEmail = result.filter(
+          (instructor) => instructor.email
+        ); // Filter out instructors without an email
+
+        // Retrieve the instructor images from the userCollection
+        const instructorsWithImage = await userCollection
+          .aggregate([
+            {
+              $match: {
+                email: {
+                  $in: instructorsWithEmail.map(
+                    (instructor) => instructor.email
+                  ),
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                email: 1,
+                image: 1,
+              },
+            },
+          ])
+          .toArray();
+
+        // Merge the instructor images into the result
+        const resultWithImage = instructorsWithEmail.map((instructor) => {
+          const { email } = instructor;
+          const matchingInstructor = instructorsWithImage.find(
+            (instructor) => instructor.email === email
+          );
+          return {
+            ...instructor,
+            image: matchingInstructor ? matchingInstructor.image : null,
+          };
+        });
+
+        res.json(resultWithImage);
       } catch (error) {
         res.status(500).json("Internal Server Error");
       }
     });
+
     // All Instructors
     app.get("/instructors", async (req, res) => {
       try {
@@ -309,6 +341,7 @@ async function run() {
                 _id: 1,
                 name: 1,
                 email: 1,
+                image: 1,
                 totalClasses: { $size: "$classes" },
               },
             },
