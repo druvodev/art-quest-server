@@ -257,11 +257,16 @@ async function run() {
 
       res.json(result);
     });
-    // Popular Instructor
+    // Popular Instructors
     app.get("/popularInstructors", async (req, res) => {
       try {
         const result = await classCollection
           .aggregate([
+            {
+              $match: {
+                status: "approved",
+              },
+            },
             {
               $group: {
                 _id: "$instructor",
@@ -331,9 +336,20 @@ async function run() {
             {
               $lookup: {
                 from: "classes",
-                localField: "email",
-                foreignField: "email",
-                as: "classes",
+                let: { instructorEmail: "$email" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $and: [
+                          { $eq: ["$email", "$$instructorEmail"] },
+                          { $eq: ["$status", "approved"] },
+                        ],
+                      },
+                    },
+                  },
+                ],
+                as: "approvedClasses",
               },
             },
             {
@@ -342,7 +358,7 @@ async function run() {
                 name: 1,
                 email: 1,
                 image: 1,
-                totalClasses: { $size: "$classes" },
+                totalClasses: { $size: "$approvedClasses" },
               },
             },
           ])
@@ -352,6 +368,7 @@ async function run() {
         res.status(500).json("Internal Server Error");
       }
     });
+
     // Send Approved classes
     app.get("/classes", async (req, res) => {
       const result = await classCollection
