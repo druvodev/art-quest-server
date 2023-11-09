@@ -620,7 +620,7 @@ run().catch(console.dir);
 // ------------------------
 
 app.get("/", (req, res) => {
-  res.json("Art Quest is running");
+  res.json("Art Quest is running..");
 });
 
 app.listen(port, () => {
